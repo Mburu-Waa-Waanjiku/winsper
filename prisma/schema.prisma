@@ -1,0 +1,728 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with role-based permissions
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name  String? 
+  emailVerified DateTime?
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Avatar stored as base64
+  avatarBase64   String? @db.Text
+  avatarMimeType String?
+  avatarFilename String?
+  avatarWidth    Int?
+  avatarHeight   Int?
+  avatarSize     Int?    // File size in bytes
+  
+  role      UserRole @default(EDITOR)
+  isActive  Boolean  @default(true)
+  
+  // Page-specific permissions (only applies if role is EDITOR)
+  canEditHomepage     Boolean @default(false)
+  canEditAbout        Boolean @default(false)
+  canEditContacts     Boolean @default(false)
+  canEditTitleIssuing Boolean @default(false)
+  canEditTestimonials Boolean @default(false)
+  canEditLandForSale  Boolean @default(false)
+  canEditBlog         Boolean @default(false)
+  
+  // Relations
+  blogPosts     BlogPost[]
+  landListings  LandForSale[]
+  testimonials  CustomerTestimonial[]
+  titleIssues   TitleIssuing[]
+  mediaUploads  Media[]        // Images uploaded by this user
+  
+  // Created/Updated relations
+  createdHomepages     Homepage[] @relation("CreatedPages")
+  updatedHomepages     Homepage[] @relation("UpdatedPages")
+  createdSections      HomepageSection[] @relation("CreatedPages")
+  updatedSections      HomepageSection[] @relation("UpdatedPages")
+  createdAbouts        About[] @relation("CreatedPages")
+  updatedAbouts        About[] @relation("UpdatedPages")
+  createdAboutSections AboutSection[] @relation("CreatedPages")
+  updatedAboutSections AboutSection[] @relation("UpdatedPages")
+  createdContacts      Contacts[] @relation("CreatedPages")
+  updatedContacts      Contacts[] @relation("UpdatedPages")
+  createdTitleIssues   TitleIssuing[] @relation("CreatedPages")
+  updatedTitleIssues   TitleIssuing[] @relation("UpdatedPages")
+  createdLandListings  LandForSale[] @relation("CreatedPages")
+  updatedLandListings  LandForSale[] @relation("UpdatedPages")
+  createdBlogPosts     BlogPost[] @relation("CreatedPages")
+  updatedBlogPosts     BlogPost[] @relation("UpdatedPages")
+  createdBlogSections  BlogSection[] @relation("CreatedPages")
+  updatedBlogSections  BlogSection[] @relation("UpdatedPages")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+}
+
+// Homepage model for hero banners and content
+model Homepage {
+  id          String @id @default(cuid())
+  
+  // Hero section
+  heroTitle       String?
+  heroSubtitle    String?
+  heroDescription String? @db.Text
+  heroCta         String?
+  heroCtaLink     String?
+  
+  // Hero images (multiple banner images)
+  heroImages HeroImage[]
+  
+  // Additional homepage sections
+  sections HomepageSection[]
+  
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("homepage")
+}
+
+model HeroImage {
+  id         String @id @default(cuid())
+  base64Data String @db.Text // Base64 encoded image data
+  mimeType   String         // e.g., "image/jpeg", "image/png", "image/webp"
+  filename   String?        // Original filename for reference
+  alt        String?
+  caption    String?
+  order      Int    @default(0)
+  isActive   Boolean @default(true)
+  
+  // Image metadata
+  fileSize   Int?    // File size in bytes
+  width      Int?    // Image width in pixels
+  height     Int?    // Image height in pixels
+  
+  homepage   Homepage @relation(fields: [homepageId], references: [id], onDelete: Cascade)
+  homepageId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("hero_images")
+}
+
+model HomepageSection {
+  id          String  @id @default(cuid())
+  title       String
+  content     String  @db.Text
+  
+  // Image stored as base64
+  imageBase64  String? @db.Text
+  imageMimeType String?
+  imageFilename String?
+  imageAlt     String?
+  imageWidth   Int?
+  imageHeight  Int?
+  imageSize    Int?    // File size in bytes
+  
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+  
+  homepage   Homepage @relation(fields: [homepageId], references: [id], onDelete: Cascade)
+  homepageId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("homepage_sections")
+}
+
+// About page model with multiple sections
+model About {
+  id String @id @default(cuid())
+  
+  // Main about content
+  title       String?
+  description String? @db.Text
+  
+  // Multiple sections for the about page
+  sections AboutSection[]
+  
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("about")
+}
+
+model AboutSection {
+  id       String  @id @default(cuid())
+  title    String
+  content  String  @db.Text
+  
+  // Image stored as base64
+  imageBase64   String? @db.Text
+  imageMimeType String?
+  imageFilename String?
+  imageAlt      String?
+  imageWidth    Int?
+  imageHeight   Int?
+  imageSize     Int?    // File size in bytes
+  
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+  
+  about   About  @relation(fields: [aboutId], references: [id], onDelete: Cascade)
+  aboutId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("about_sections")
+}
+
+// Contacts model for contact information
+model Contacts {
+  id String @id @default(cuid())
+  
+  // Contact information
+  companyName    String?
+  description    String? @db.Text
+  
+  // Multiple contact methods
+  emails       ContactEmail[]
+  phones       ContactPhone[]
+  addresses    ContactAddress[]
+  socialLinks  SocialLink[]
+  
+  // Contact form settings
+  contactFormTitle String?
+  contactFormDescription String? @db.Text
+  
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("contacts")
+}
+
+model ContactEmail {
+  id          String  @id @default(cuid())
+  email       String
+  label       String? // e.g., "General Inquiries", "Support", etc.
+  isPrimary   Boolean @default(false)
+  isActive    Boolean @default(true)
+  
+  contacts   Contacts @relation(fields: [contactsId], references: [id], onDelete: Cascade)
+  contactsId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("contact_emails")
+}
+
+model ContactPhone {
+  id          String  @id @default(cuid())
+  phone       String
+  label       String? // e.g., "Office", "Mobile", "WhatsApp", etc.
+  isPrimary   Boolean @default(false)
+  isActive    Boolean @default(true)
+  
+  contacts   Contacts @relation(fields: [contactsId], references: [id], onDelete: Cascade)
+  contactsId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("contact_phones")
+}
+
+model ContactAddress {
+  id          String  @id @default(cuid())
+  street      String
+  city        String
+  state       String?
+  postalCode  String?
+  country     String
+  label       String? // e.g., "Head Office", "Branch Office", etc.
+  isPrimary   Boolean @default(false)
+  isActive    Boolean @default(true)
+  
+  contacts   Contacts @relation(fields: [contactsId], references: [id], onDelete: Cascade)
+  contactsId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("contact_addresses")
+}
+
+model SocialLink {
+  id       String  @id @default(cuid())
+  platform String  // e.g., "Facebook", "Twitter", "LinkedIn", etc.
+  url      String
+  isActive Boolean @default(true)
+  
+  contacts   Contacts @relation(fields: [contactsId], references: [id], onDelete: Cascade)
+  contactsId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("social_links")
+}
+
+// Title Issuing model for title issuing events
+model TitleIssuing {
+  id          String @id @default(cuid())
+  title       String
+  description String @db.Text
+  clientName  String?
+  projectName String?
+  location    String?
+  issueDate   DateTime?
+  status      TitleStatus @default(PENDING)
+  
+  // Multiple images for each title issuing event
+  images TitleIssuingImage[]
+  
+  // Relations
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("title_issuing")
+}
+
+model TitleIssuingImage {
+  id          String @id @default(cuid())
+  base64Data  String @db.Text // Base64 encoded image data
+  mimeType    String         // e.g., "image/jpeg", "image/png", "image/webp"
+  filename    String?        // Original filename for reference
+  alt         String?
+  caption     String?
+  order       Int    @default(0)
+  isActive    Boolean @default(true)
+  
+  // Image metadata
+  fileSize    Int?    // File size in bytes
+  width       Int?    // Image width in pixels
+  height      Int?    // Image height in pixels
+  
+  titleIssuing   TitleIssuing @relation(fields: [titleIssuingId], references: [id], onDelete: Cascade)
+  titleIssuingId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("title_issuing_images")
+}
+
+enum TitleStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Customer Testimonials model
+model CustomerTestimonial {
+  id          String @id @default(cuid())
+  clientName  String
+  clientTitle String? // e.g., "CEO", "Manager", etc.
+  company     String?
+  testimonial String @db.Text
+  rating      Int?    @default(5) // 1-5 star rating
+  
+  // Client image stored as base64
+  clientImageBase64   String? @db.Text
+  clientImageMimeType String?
+  clientImageFilename String?
+  clientImageAlt      String?
+  clientImageWidth    Int?
+  clientImageHeight   Int?
+  clientImageSize     Int?    // File size in bytes
+  
+  // Project/service related
+  projectName String?
+  serviceType String?
+  
+  // Relations
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+  
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("customer_testimonials")
+}
+
+// Land For Sale model for property listings
+model LandForSale {
+  id            String @id @default(cuid())
+  title         String
+  description   String @db.Text
+  location      String
+  address       String?
+  
+  // Pricing
+  price         Decimal @db.Decimal(15, 2)
+  pricePerSqft  Decimal? @db.Decimal(10, 2)
+  currency      String  @default("USD")
+  
+  // Property details
+  size          String  // e.g., "2.5 acres", "1000 sqft"
+  sizeInSqft    Int?    // Size in square feet for calculations
+  propertyType  String? // e.g., "Residential", "Commercial", "Agricultural"
+  zoning        String?
+  
+  // Features and amenities
+  features      String[] // Array of features
+  amenities     String[] // Array of amenities
+  
+  // Location details
+  latitude      Float?
+  longitude     Float?
+  
+  // Images and media
+  images        LandImage[]
+  
+  // Status and availability
+  status        PropertyStatus @default(AVAILABLE)
+  isActive      Boolean       @default(true)
+  isFeatured    Boolean       @default(false)
+  
+  // SEO
+  slug          String  @unique
+  metaTitle     String?
+  metaDescription String?
+  
+  // Relations
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("land_for_sale")
+}
+
+model LandImage {
+  id        String  @id @default(cuid())
+  base64Data String @db.Text // Base64 encoded image data
+  mimeType   String         // e.g., "image/jpeg", "image/png", "image/webp"
+  filename   String?        // Original filename for reference
+  alt       String?
+  caption   String?
+  order     Int     @default(0)
+  isActive  Boolean @default(true)
+  
+  // Image metadata
+  fileSize  Int?    // File size in bytes
+  width     Int?    // Image width in pixels
+  height    Int?    // Image height in pixels
+  
+  land   LandForSale @relation(fields: [landId], references: [id], onDelete: Cascade)
+  landId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("land_images")
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  UNDER_CONTRACT
+  SOLD
+  WITHDRAWN
+}
+
+// Blog model for blog posts
+model BlogPost {
+  id          String @id @default(cuid())
+  title       String
+  content     String @db.Text
+  excerpt     String? @db.Text
+  
+  // SEO and URL
+  slug        String  @unique
+  metaTitle   String?
+  metaDescription String?
+  
+  // Featured image stored as base64
+  featuredImageBase64   String? @db.Text
+  featuredImageMimeType String?
+  featuredImageFilename String?
+  featuredImageAlt      String?
+  featuredImageWidth    Int?
+  featuredImageHeight   Int?
+  featuredImageSize     Int?    // File size in bytes
+  
+  // Blog images (content images)
+  images      BlogImage[]
+  
+  // Blog sections for structured content
+  sections    BlogSection[]
+  
+  // Categories and tags - using implicit many-to-many relations
+  categories  BlogCategory[]
+  tags        BlogTag[]
+  
+  // Publishing
+  status      PostStatus @default(DRAFT)
+  publishedAt DateTime?
+  
+  // Relations
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("blog_posts")
+}
+
+model BlogSection {
+  id          String  @id @default(cuid())
+  title       String
+  content     String  @db.Text
+  
+  // Image stored as base64
+  imageBase64   String? @db.Text
+  imageMimeType String?
+  imageFilename String?
+  imageAlt      String?
+  imageWidth    Int?
+  imageHeight   Int?
+  imageSize     Int?    // File size in bytes
+  
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+  
+  blogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  blogPostId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy     User?    @relation("CreatedPages", fields: [createdById], references: [id])
+  createdById   String?
+  updatedBy     User?    @relation("UpdatedPages", fields: [updatedById], references: [id])
+  updatedById   String?
+  
+  @@map("blog_sections")
+}
+
+model BlogImage {
+  id        String  @id @default(cuid())
+  base64Data String @db.Text // Base64 encoded image data
+  mimeType   String         // e.g., "image/jpeg", "image/png", "image/webp"
+  filename   String?        // Original filename for reference
+  alt       String?
+  caption   String?
+  order     Int     @default(0)
+  isActive  Boolean @default(true)
+  
+  // Image metadata
+  fileSize  Int?    // File size in bytes
+  width     Int?    // Image width in pixels
+  height    Int?    // Image height in pixels
+  
+  blogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  blogPostId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("blog_images")
+}
+
+model BlogCategory {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  slug        String @unique
+  color       String? // For UI theming
+  
+  // Many-to-many relation with blog posts
+  posts BlogPost[]
+  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+  
+  // Many-to-many relation with blog posts
+  posts BlogPost[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("blog_tags")
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Media management model for displaying all images in the site
+model Media {
+  id          String @id @default(cuid())
+  base64Data  String @db.Text // Base64 encoded image data
+  mimeType    String         // e.g., "image/jpeg", "image/png", "image/webp"
+  filename    String         // Original filename
+  alt         String?
+  caption     String?
+  
+  // Image metadata
+  fileSize    Int     // File size in bytes
+  width       Int?    // Image width in pixels
+  height      Int?    // Image height in pixels
+  
+  // Usage tracking - where this image is used
+  usageType   MediaUsageType
+  usageId     String?        // ID of the record where this image is used
+  usageField  String?        // Field name where this image is used
+  
+  // Tags for organization
+  tags        String[]       // Array of tags for filtering/searching
+  
+  // Upload information
+  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Index for faster searching
+  @@index([usageType, usageId])
+  @@index([uploadedById])
+  @@index([filename])
+  
+  @@map("media")
+}
+
+enum MediaUsageType {
+  USER_AVATAR
+  HERO_IMAGE
+  HOMEPAGE_SECTION
+  ABOUT_SECTION
+  TITLE_ISSUING
+  CUSTOMER_TESTIMONIAL
+  LAND_LISTING
+  BLOG_FEATURED
+  BLOG_CONTENT
+  BLOG_SECTION
+  GENERAL // For standalone images not tied to specific content
+}
